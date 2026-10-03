@@ -11,20 +11,31 @@ Thanks,
 Used recognition thingy for speech:
 
 https://pypi.org/project/SpeechRe0cognition/
+
 https://github.com/Uberi/speech_recognition/blob/master/examples/microphone_recognition.py
+
 python3 -m venv .venv
+
 source .venv/bin/activate
+
 python -m pip install SpeechRecognition numpy
-python speech-text.py
-python -m pip install "SpeechRecognition[audio]" numpy
-brew install portaudio
-python -m pip install --no-cache-dir PyAudio
-python -c "import pyaudio; print('PyAudio installed')"
+
 python speech-text.py
 
-This is the text to speech modult
+python -m pip install "SpeechRecognition[audio]" numpy
+
+brew install portaudio
+
+python -m pip install --no-cache-dir PyAudio
+
+python -c "import pyaudio; print('PyAudio installed')"
+
+python speech-text.py
+
+This is the text to speech modul
+
 https://pypi.org/project/pyttsx3/
-pip install pyttsx3
+
 
 possible commands:
 - inicia el proceso
