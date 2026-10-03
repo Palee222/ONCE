@@ -2,32 +2,11 @@ import numpy as np
 import os
 import re
 import unicodedata
+import threading
+import queue
+import tkinter as tk
 
 #!/usr/bin/env python3
-'''
-Used recognition thingy for speech:
-
-https://pypi.org/project/SpeechRe0cognition/
-https://github.com/Uberi/speech_recognition/blob/master/examples/microphone_recognition.py
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install SpeechRecognition numpy
-python speech-text.py
-python -m pip install "SpeechRecognition[audio]" numpy
-brew install portaudio
-python -m pip install --no-cache-dir PyAudio
-python -c "import pyaudio; print('PyAudio installed')"
-python speech-text.py
-
-This is the text to speech modult
-https://pypi.org/project/pyttsx3/
-pip install pyttsx3
-
-possible commands:
-- inicia el proceso
-- sacar la comida
-- poner comida
-'''
 
 #this is the speech recognition modul
 #find the information on the above link
@@ -113,8 +92,32 @@ def to_arm():
     '''
     
     return 0
+class StatusWindow:
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("Estado del brazo")
+        self.canvas = tk.Canvas(self.root, width=220, height=110, highlightthickness=0)
+        self.canvas.pack(padx=20, pady=(20, 5))
+        self.red = self.canvas.create_oval(10, 10, 100, 100, fill="#ff0000")
+        self.green = self.canvas.create_oval(120, 10, 210, 100, fill="#003300")
+        self.label = tk.Label(self.root, text="Esperando...", font=("Helvetica", 16))
+        self.label.pack(pady=(5, 20))
+        self.updates = queue.Queue()
+        self.root.after(100, self._poll)
 
-def feedback(command):
+    def set_state(self, busy, text):
+        # safe to call from the listening thread
+        self.updates.put((busy, text))
+
+    def _poll(self):
+        while not self.updates.empty():
+            busy, text = self.updates.get()
+            self.canvas.itemconfig(self.red, fill="#550000" if busy else "#ff0000")
+            self.canvas.itemconfig(self.green, fill="#00cc00" if busy else "#003300")
+            self.label.config(text=text)
+        self.root.after(100, self._poll)
+        
+def feedback(command, window):
     #give visual and audio feedback on starting the process, setting the minutes to x and putting/taking food
     '''
     The visual feedback would be just a UI with a red and green lamp. The red turns on when the arm is doing nothing and green turns on when the arm understood the command and is in the process
@@ -122,6 +125,19 @@ def feedback(command):
     
     For audio feedback it would be almost the same, just feedback is being said. For example, "Setting time for x minutes" or "Starting process".
     '''
+    
+        #visual feedback for the user
+    if command is None:
+        window.set_state(False, "No entendí el comando")
+    elif command["action"] == "set_time":
+        window.set_state(True, f"Ajustando el tiempo a {command['minutes']} minutos...")
+    elif command["action"] == "start":
+        window.set_state(True, "Iniciando el proceso...")
+    elif command["action"] == "remove_food":
+        window.set_state(True, "Sacando la comida...")
+    elif command["action"] == "add_food":
+        window.set_state(True, "Poniendo comida...")
+        
     #audio feedback for the user
     if command is None:
         engine.say("No entendí el comando. Inténtalo de nuevo.")
@@ -135,10 +151,27 @@ def feedback(command):
         engine.say("Poniendo comida.")
     engine.runAndWait()
 
-    #visual feedback for the user
+    window.set_state(False, "Esperando...")   # back to red when done
     return 0
 
-if __name__ == "__main__":
+def run_assistant():
+    # Phase 1: keep listening until "inicia el proceso" is heard
+    while True:
+        recognized_command = speech_recognition()
+        if recognized_command and recognized_command["action"] == "start":
+            engine.say(f"Comando: {recognized_command}")
+            feedback(recognized_command)
+            break
+
+    # Phase 2: process started, now accept set_time / add_food / remove_food
+    while True:
+        recognized_command = speech_recognition()
+        if recognized_command == 0:   # timeout or service error, just listen again
+            continue
+        engine.say(f"Comando: {recognized_command}")
+        feedback(recognized_command)
+        
+def run_assistant():
     # Phase 1: keep listening until "inicia el proceso" is heard
     while True:
         recognized_command = speech_recognition()
@@ -148,12 +181,16 @@ if __name__ == "__main__":
             break
 
     # Phase 2: process started, now accept set_time / add_food / remove_food
-    try:
-        while True:
-            recognized_command = speech_recognition()
-            if recognized_command == 0:   # timeout or service error, just listen again
-                continue
-            print(f"Comando: {recognized_command}")
-            feedback(recognized_command)
-    except KeyboardInterrupt:
-        print("Saliendo...")
+    while True:
+        recognized_command = speech_recognition()
+        if recognized_command == 0:   # timeout or service error, just listen again
+            continue
+        print(f"Comando: {recognized_command}")
+        feedback(recognized_command)
+
+
+if __name__ == "__main__":
+    window = StatusWindow()
+    threading.Thread(target=run_assistant, daemon=True).start()
+    window.root.mainloop()
+    
