@@ -52,7 +52,7 @@ def parse_command(transcript: str):
         return None
 
     commands = {
-        "inicia el proceso": "start",
+        "iniciar el proceso": "start",
         "sacar la comida": "remove_food",
         "poner comida": "add_food",
     }
@@ -154,43 +154,62 @@ def feedback(command, window):
     window.set_state(False, "Esperando...")   # back to red when done
     return 0
 
-def run_assistant():
-    # Phase 1: keep listening until "inicia el proceso" is heard
+MESSAGES = {
+    "start": "Iniciar el proceso",
+    "remove_food": "Sacando la comida",
+    "add_food": "Poniendo comida",
+}
+
+def describe(command):
+    if command["action"] == "set_time":
+        return f"Ajustando el tiempo a {command['minutes']} minutos"
+    return MESSAGES[command["action"]]
+
+
+def send_to_arm(command):
+    # TODO: connect to the arm here (serial, GPIO, ROS, etc.)
+    # command looks like {"action": "start"} or {"action": "set_time", "minutes": 5}
+    print(f"[ARM] {command}")
+
+
+def speak(text):
+    engine.say(text)
+    engine.runAndWait()
+
+
+def run_assistant(window):
+    # 1. Listen until "inicia el proceso" is heard
     while True:
-        recognized_command = speech_recognition()
-        if recognized_command and recognized_command["action"] == "start":
-            engine.say(f"Comando: {recognized_command}")
-            feedback(recognized_command)
+        command = speech_recognition()
+        if command and command["action"] == "start":
             break
 
-    # Phase 2: process started, now accept set_time / add_food / remove_food
-    while True:
-        recognized_command = speech_recognition()
-        if recognized_command == 0:   # timeout or service error, just listen again
-            continue
-        engine.say(f"Comando: {recognized_command}")
-        feedback(recognized_command)
-        
-def run_assistant():
-    # Phase 1: keep listening until "inicia el proceso" is heard
-    while True:
-        recognized_command = speech_recognition()
-        if recognized_command and recognized_command["action"] == "start":
-            print(f"Comando: {recognized_command}")
-            feedback(recognized_command)
-            break
+    # 2. Light green, announce, and the arm puts the food in the microwave
+    window.set_state(True, "Poniendo comida en el microondas...")
+    speak("Iniciando el proceso")
+    send_to_arm({"action": "add_food"})   # must wait until the arm is done
+    window.set_state(True, "Comida dentro. Di el tiempo...")
+    speak("Comida dentro. ¿Cuántos minutos?")
 
-    # Phase 2: process started, now accept set_time / add_food / remove_food
+    # 3. Wait for the time command ("ajusta el tiempo a X minutos")
     while True:
-        recognized_command = speech_recognition()
-        if recognized_command == 0:   # timeout or service error, just listen again
+        command = speech_recognition()
+        if command == 0:                    # timeout / service error, listen again
             continue
-        print(f"Comando: {recognized_command}")
-        feedback(recognized_command)
+        if command is None:                 # not understood, or time outside 1-35
+            speak("No entendí el tiempo. Inténtalo de nuevo.")
+            continue
+        if command["action"] == "set_time":
+            break                           # ignore any other command
+
+    # 4. Set the time on the microwave
+    window.set_state(True, f"Ajustando el tiempo a {command['minutes']} minutos...")
+    speak(f"Ajustando el tiempo a {command['minutes']} minutos")
+    send_to_arm(command)
+    window.set_state(True, "Proceso en marcha...")
 
 
 if __name__ == "__main__":
     window = StatusWindow()
-    threading.Thread(target=run_assistant, daemon=True).start()
+    threading.Thread(target=run_assistant, args=(window,), daemon=True).start()
     window.root.mainloop()
-    
