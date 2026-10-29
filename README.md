@@ -14,23 +14,15 @@ https://pypi.org/project/SpeechRe0cognition/
 
 https://github.com/Uberi/speech_recognition/blob/master/examples/microphone_recognition.py
 
-python3 -m venv .venv
+To run the project
 
-source .venv/bin/activate
-
-python -m pip install SpeechRecognition numpy
-
-python speech-text.py
-
-python -m pip install "SpeechRecognition[audio]" numpy
-
-brew install portaudio
-
-python -m pip install --no-cache-dir PyAudio
-
-python -c "import pyaudio; print('PyAudio installed')"
-
-python speech-text.py
+            /Library/Frameworks/Python.framework/Versions/3.13/bin/python3 -m venv .venv
+            
+            source .venv/bin/activate
+            
+            python -m pip install numpy "SpeechRecognition[audio]" pyttsx3
+            
+            python ONCE_stuff/speech-text.py
 
 This is the text to speech modul
 
